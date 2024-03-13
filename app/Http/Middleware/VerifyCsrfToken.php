@@ -17,6 +17,12 @@ class VerifyCsrfToken extends Middleware
         '/api/users/plants/add-plant',
         '/api/users/plants/get-plants',
         '/api/users/plants/remove-plant',
-        '/api/user/plants/'
+        '/api/user/plants/',
+        '/api/users/plants/get-plant-activities/',
+        '/api/users/plants/get-plant-diagnoses/',
+        '/api/users/plants/diagnose/create',
+        '/api/users/devices/get-devices/',
+        '/api/users/devices/pair-devices/',
+        '/api/users/devices/unpair-devices'
     ];
 }

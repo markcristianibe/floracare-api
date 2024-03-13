@@ -8,6 +8,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use App\Models\Device;
+use App\Models\PlantDiagnose;
 use App\Models\UserPlant;
 use App\Models\UserPlantActivity;
 
@@ -109,13 +110,12 @@ class APIController extends Controller
         $userplant -> label = $request->label;
         $userplant -> save();
 
-        $this->create_activity_log($request->userId, 'Plant Added', $request->label);
-        $response = ['message' => $request->userId];
-        return response()->json($response, 200);
+        $this->create_activity_log($userplant->id, 'Plant Added', $request->label);
+        return $userplant->id;
     }
 
-    public function get_user_plants(Request $request){
-        $data = UserPlant::where('user_id', $request->userId)->orderBy('updated_at', 'desc')->get();
+    public function get_user_plants($userId){
+        $data = UserPlant::where('user_id', '=', $userId)->orderBy('updated_at', 'desc')->get();
         
         $response = array();
         for($i = 0; $i < count($data); $i++){
@@ -157,10 +157,57 @@ class APIController extends Controller
         $data = UserPlant::where('plant_id', '=', $plant_id)->first();
 
         $device = Device::where('plant_id', '=', $plant_id)->first();
+        $activities = UserPlantActivity::where('plant_id', '=', $plant_id)
+        ->orderBy('created_at', 'desc')->get();
 
         $jsonString = file_get_contents('plant-database-master/json/' . $data->plant_name . '.json');
         $plant_info = json_decode($jsonString, true);
 
-        return  ['plant_info' => $plant_info, 'data' => $data, 'device' => $device];
+        return  ['plant_info' => $plant_info, 'data' => $data, 'device' => $device, 'activities' => $activities];
+    }
+
+    public function get_plant_activities($plant_id){
+        $activity = UserPlantActivity::where('plant_id', '=', $plant_id)->get();
+        return $activity;
+    }
+
+    public function get_plant_diagnoses($plant_id){
+        $diagnosis = PlantDiagnose::where('plant_id', '=', $plant_id)->get();
+        return $diagnosis;
+    }
+
+    public function get_user_devices($user_id){
+        $paired_devices = Device::where('user_id', '=', $user_id)
+        ->where('status', '!=', 'idle')
+        ->get();
+
+        $available_devices = Device::where('user_id', '=', $user_id)
+        ->where('status', '=', 'idle')
+        ->get();
+
+        return ["paired_devices" => $paired_devices, "available_devices" => $available_devices];
+    }
+
+    public function create_diagnosis(Request $request){
+        $diagnosis = new PlantDiagnose;
+        $diagnosis -> user_id = $request->user_id;
+        $diagnosis -> plant_id = $request->plant_id;
+        $diagnosis -> data = $request->data;
+        $diagnosis -> is_user_plant = 1;
+        $diagnosis -> save();
+
+        $this->create_activity_log($request->plant_id, 'Plant Health Assessment', $diagnosis->id);
+        $response = ['message' => $request->userId];
+        return response()->json($response, 200);
+    }
+
+    public function pair_user_devices(Request $request){
+        Device::where('serial_no', '=', $request->device_id)
+        ->update(['status' => 'offline', 'plant_id' => $request->plant_id]);
+    }
+
+    public function unpair_user_devices(Request $request){
+        Device::where('serial_no', '=', $request->device_id)
+        ->update(['status' => 'idle', 'plant_id' => '']);
     }
 }
