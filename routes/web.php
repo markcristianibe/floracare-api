@@ -37,3 +37,4 @@ Route::post('/api/users/plants/diagnose/create', [APIController::class, 'create_
 Route::get('/api/users/devices/get-devices/{user_id}', [APIController::class, 'get_user_devices']);
 Route::get('/api/users/devices/pair-devices/{device_id}/{plant_id}', [APIController::class, 'pair_user_devices']);
 Route::get('/api/users/devices/unpair-devices/{device_id}/{plant_id}', [APIController::class, 'unpair_user_devices']);
+Route::get('/api/users/devices/plant/{plant_id}', [APIController::class, 'get_plant_device']);

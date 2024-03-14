@@ -167,7 +167,7 @@ class APIController extends Controller
     }
 
     public function get_plant_activities($plant_id){
-        $activity = UserPlantActivity::where('plant_id', '=', $plant_id)->get();
+        $activity = UserPlantActivity::where('plant_id', '=', $plant_id)->orderBy('id', 'desc')->get();
         return $activity;
     }
 
@@ -202,12 +202,28 @@ class APIController extends Controller
     }
 
     public function pair_user_devices(Request $request){
+        Device::where('plant_id', '=', $request->plant_id)
+        ->update(['status' => 'idle', 'plant_id' => '']);
+
         Device::where('serial_no', '=', $request->device_id)
         ->update(['status' => 'offline', 'plant_id' => $request->plant_id]);
+
+        $this->create_activity_log($request->plant_id, 'Paired Device to Plant', $request->device_id);
     }
 
     public function unpair_user_devices(Request $request){
+        $device = Device::where('serial_no', '=', $request->device_id)->first();
+        $plant_id = $device->plant_id;
+
         Device::where('serial_no', '=', $request->device_id)
         ->update(['status' => 'idle', 'plant_id' => '']);
+
+        $this->create_activity_log($plant_id, 'Unpaired Device to Plant', $request->device_id);
+        return $plant_id . ' - ' . $request->device_id;
+    }
+
+    public function get_plant_device(Request $request){
+        $device = Device::where('plant_id', '=', $request->plant_id)->get();
+        return $device;
     }
 }
