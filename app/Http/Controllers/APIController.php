@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use App\Models\Device;
 use App\Models\PlantDiagnose;
+use App\Models\Reminder;
 use App\Models\UserPlant;
 use App\Models\UserPlantActivity;
 
@@ -176,6 +177,11 @@ class APIController extends Controller
         return $diagnosis;
     }
 
+    public function get_plant_reminders($plant_id){
+        $reminder = Reminder::where('plant_id', '=', $plant_id)->get();
+        return $reminder;
+    }
+
     public function get_user_devices($user_id){
         $paired_devices = Device::where('user_id', '=', $user_id)
         ->where('status', '!=', 'idle')
@@ -225,5 +231,35 @@ class APIController extends Controller
     public function get_plant_device(Request $request){
         $device = Device::where('plant_id', '=', $request->plant_id)->get();
         return $device;
+    }
+
+    public function rename_device(Request $request){
+        $device = Device::where('serial_no', '=', $request->device_id)
+        ->update(['device_name' => $request->name]);
+    }
+
+    public function disconnect_device(Request $request){
+        $device_id = $request->device_id;
+
+        $device = Device::where('serial_no', '=', $device_id)->get();
+
+        if($device[0]->plant_id != ''){
+            return 'device is paired';
+        }
+        else{
+            Device::where('serial_no', '=', $device_id)->delete();
+            return 'device deleted';
+        }
+    }
+
+    public function create_reminder(Request $request){
+        $time = date_format(date_create($request->time), "H:i:s");
+
+        $reminder = new Reminder();
+        $reminder -> plant_id = $request->plant_id;
+        $reminder -> activity = $request->activity;
+        $reminder -> scheduled_at = $request->date;
+        $reminder -> time = $time;
+        $reminder -> save();
     }
 }

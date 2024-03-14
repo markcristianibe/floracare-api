@@ -24,6 +24,10 @@ class VerifyCsrfToken extends Middleware
         '/api/users/devices/get-devices/',
         '/api/users/devices/pair-devices/',
         '/api/users/devices/unpair-devices',
-        '/api/users/devices/plant/'
+        '/api/users/devices/plant/',
+        '/api/users/devices/rename-device/',
+        '/api/users/devices/disconnect-device/',
+        '/api/users/reminders/create-reminder/',
+        '/api/users/plants/get-plant-reminders/'
     ];
 }

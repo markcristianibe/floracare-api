@@ -38,3 +38,7 @@ Route::get('/api/users/devices/get-devices/{user_id}', [APIController::class, 'g
 Route::get('/api/users/devices/pair-devices/{device_id}/{plant_id}', [APIController::class, 'pair_user_devices']);
 Route::get('/api/users/devices/unpair-devices/{device_id}/{plant_id}', [APIController::class, 'unpair_user_devices']);
 Route::get('/api/users/devices/plant/{plant_id}', [APIController::class, 'get_plant_device']);
+Route::get('/api/users/devices/rename-device/{device_id}/{name}', [APIController::class, 'rename_device']);
+Route::get('/api/users/devices/disconnect-device/{device_id}', [APIController::class, 'disconnect_device']);
+Route::get('/api/users/reminders/create-reminder/{plant_id}/{activity}/{date}/{time}', [APIController::class, 'create_reminder']);
+Route::get('/api/users/plants/get-plant-reminders/{plant_id}', [APIController::class, 'get_plant_reminders']);
