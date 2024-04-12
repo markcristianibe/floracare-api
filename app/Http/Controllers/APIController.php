@@ -9,12 +9,51 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use App\Models\Device;
 use App\Models\PlantDiagnose;
+use App\Models\ReadingLog;
 use App\Models\Reminder;
+use App\Models\User;
 use App\Models\UserPlant;
 use App\Models\UserPlantActivity;
+use PhpParser\Node\Expr\Cast\Array_;
 
 class APIController extends Controller
 {
+    function iot_send_data(Request $request){
+        $device_id = $request->serial;
+
+        Device::where('serial_no', '=', $device_id)
+        ->where('status', '!=', 'idle')
+        ->update([
+            'light_intensity' => $request->lightIntensity,
+            'temperature' => $request->temperature,
+            'humidity' => $request->humidity,
+            'soil_moisture' => $request->soilMoisture,
+            'battery_percentage' => $request->batteryLevel,
+            'soil_fertility' => $request->soilEC,
+            'soil_ph' => $request->soilPH,
+            'nitrogen' => $request->nitrogen,
+            'phosphorus' => $request->phosporus,
+            'potassium' => $request->potassium,
+            'status' => 'online'
+        ]);
+
+        $device = Device::where('serial_no', '=', $request->serial)->first();
+
+        $readingLog = new ReadingLog;
+        $readingLog -> serial_no = $request->serial;
+        $readingLog -> plant_id = $device->plant_id;
+        $readingLog -> light_intensity = $request->lightIntensity;
+        $readingLog -> temperature = $request->temperature;
+        $readingLog -> humidity = $request->humidity;
+        $readingLog -> soil_moisture = $request->soilMoisture;
+        $readingLog -> soil_fertility = $request->soilEC;
+        $readingLog -> soil_ph = $request->soilPH;
+        $readingLog -> nitrogen = $request->nitrogen;
+        $readingLog -> phosphorus = $request->phosporus;
+        $readingLog -> potassium = $request->potassium;
+        $readingLog -> save();
+    }
+
     function create_activity_log($plant_id, $title, $remarks){
         $userplant_activity = new UserPlantActivity;
         $userplant_activity -> plant_id = $plant_id;
@@ -158,6 +197,24 @@ class APIController extends Controller
         $data = UserPlant::where('plant_id', '=', $plant_id)->first();
 
         $device = Device::where('plant_id', '=', $plant_id)->first();
+
+        if($device != null){
+            if($device->status != "idle"){
+                $today = date_create();
+                $interval = date_create($device->updated_at)->diff($today);
+                $totalSeconds = $interval->s // Seconds
+                        + $interval->i * 60 // Minutes converted to seconds
+                        + $interval->h * 3600 // Hours converted to seconds
+                        + $interval->days * 86400;
+
+                if($totalSeconds > 7){
+                    Device::where('serial_no', '=', $device->serial_no)->update(['status' => 'offline']);
+                }
+            }
+        }
+
+        $device = Device::where('plant_id', '=', $plant_id)->first();
+
         $activities = UserPlantActivity::where('plant_id', '=', $plant_id)
         ->orderBy('created_at', 'desc')->get();
 
@@ -167,24 +224,41 @@ class APIController extends Controller
         return  ['plant_info' => $plant_info, 'data' => $data, 'device' => $device, 'activities' => $activities];
     }
 
+    public function get_user_plant_monitoring($plant_id){
+        $data = UserPlant::where('plant_id', '=', $plant_id)->first();
+        $jsonString = file_get_contents('plant-database-master/json/' . $data->plant_name . '.json');
+        $plant_info = json_decode($jsonString, true);
+        $device = Device::where('plant_id', '=', $plant_id)->first();
+
+        return ['device' => $device, 'plant_info' => $plant_info];
+    }
+
     public function get_plant_activities($plant_id){
         $activity = UserPlantActivity::where('plant_id', '=', $plant_id)->orderBy('id', 'desc')->get();
         return $activity;
     }
 
     public function get_plant_diagnoses($plant_id){
-        $diagnosis = PlantDiagnose::where('plant_id', '=', $plant_id)->get();
+        $diagnosis = PlantDiagnose::where('plant_id', '=', $plant_id)->orderBy('id', 'desc')->get();
         return $diagnosis;
     }
 
     public function get_plant_reminders($plant_id){
-        $reminder = Reminder::where('plant_id', '=', $plant_id)->get();
+        $reminder = Reminder::where('plant_id', '=', $plant_id)->orderBy('id', 'desc')->get();
         return $reminder;
+    }
+
+    public function get_user_reminders($user_id){
+        $userPlants = UserPlant::with(['reminders' => function($query) {
+            $query->where('status', '!=', 'done');
+        }])->get();
+        return $userPlants;
     }
 
     public function get_user_devices($user_id){
         $paired_devices = Device::where('user_id', '=', $user_id)
         ->where('status', '!=', 'idle')
+        ->where('status', '!=', 'disconnected')
         ->get();
 
         $available_devices = Device::where('user_id', '=', $user_id)
@@ -229,13 +303,46 @@ class APIController extends Controller
     }
 
     public function get_plant_device(Request $request){
+        $device = Device::where('plant_id', '=', $request->plant_id)->first();
+        if($device != null){
+            if($device->status != "idle"){
+                $today = date_create();
+                $interval = date_create($device->updated_at)->diff($today);
+                $totalSeconds = $interval->s // Seconds
+                        + $interval->i * 60 // Minutes converted to seconds
+                        + $interval->h * 3600 // Hours converted to seconds
+                        + $interval->days * 86400;
+
+                if($totalSeconds > 7){
+                    Device::where('serial_no', '=', $device->serial_no)->update(['status' => 'offline']);
+                }
+            }
+        }
+
+        $data = UserPlant::where('plant_id', '=', $request->plant_id)->first();
+        $jsonString = file_get_contents('plant-database-master/json/' . $data->plant_name . '.json');
+        $plant_info = json_decode($jsonString, true);
         $device = Device::where('plant_id', '=', $request->plant_id)->get();
-        return $device;
+        return ['device' => $device, 'plant_info' => $plant_info];
     }
 
     public function rename_device(Request $request){
         $device = Device::where('serial_no', '=', $request->device_id)
         ->update(['device_name' => $request->name]);
+    }
+
+    public function connect_device(Request $request){
+        $device_id = $request->device_id;
+
+        $device = Device::where('serial_no', '=', $device_id)->get();
+
+        if($device[0]->status != "disconnected"){
+            return 'device is paired';
+        }
+        else{
+            Device::where('serial_no', '=', $device_id)->update(["status" => "idle"]);
+            return 'device connected';
+        }
     }
 
     public function disconnect_device(Request $request){
@@ -247,7 +354,7 @@ class APIController extends Controller
             return 'device is paired';
         }
         else{
-            Device::where('serial_no', '=', $device_id)->delete();
+            Device::where('serial_no', '=', $device_id)->update(["status" => "disconnected"]);
             return 'device deleted';
         }
     }
@@ -260,6 +367,29 @@ class APIController extends Controller
         $reminder -> activity = $request->activity;
         $reminder -> scheduled_at = $request->date;
         $reminder -> time = $time;
+        $reminder -> status = "pending";
         $reminder -> save();
+
+        return $reminder;
+    }
+
+    public function get_plant_reminder_info(Request $request){
+        return Reminder::where('id', '=', $request->id)->first();
+    }
+
+    public function complete_plant_reminder(Request $request){
+        Reminder::where('id', '=', $request->id)->update(['status' => 'done']);
+        $reminder = Reminder::where('id', '=', $request->id)->first();
+        $this->create_activity_log($reminder->plant_id, $reminder->activity . " (Done)", "Completed");
+        return $reminder;
+    }
+
+    public function delete_plant_reminder(Request $request){
+        Reminder::where('id', '=', $request->id)->delete();
+    }
+
+    public function get_user_info($user_id){
+        $user = User::where('id', '=', $user_id)->first();
+        return $user;
     }
 }
