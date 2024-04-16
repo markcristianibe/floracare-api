@@ -21,7 +21,9 @@ Route::get('/', function () {
 
 // User Controller
 Route::post('/api/user/sign-in', [APIController::class, 'user_auth']);
-
+Route::post('/api/user/sign-up', [APIController::class, 'user_registration']);
+Route::get('/api/user/verify/{email}', [APIController::class, 'verify_account']);
+Route::post('/api/user/update-user-info/', [APIController::class, 'update_user_info']);
 
 // Plants Controller
 Route::post('/api/plants/get-info', [APIController::class, 'get_plant_info']);
@@ -43,6 +45,7 @@ Route::get('/api/users/devices/connect-device/{device_id}', [APIController::clas
 Route::get('/api/users/devices/disconnect-device/{device_id}', [APIController::class, 'disconnect_device']);
 Route::get('/api/users/reminders/create-reminder/{plant_id}/{activity}/{date}/{time}', [APIController::class, 'create_reminder']);
 Route::get('/api/users/plants/get-plant-reminders/{plant_id}', [APIController::class, 'get_plant_reminders']);
+Route::get('/api/users/plants/get-plant-scores/{plant_id}/{parameter}', [APIController::class, 'get_plant_scores']);
 Route::get('/api/users/plants/get-plant-reminder/{id}', [APIController::class, 'get_plant_reminder_info']);
 Route::get('/api/users/plants/complete-plant-reminder/{id}', [APIController::class, 'complete_plant_reminder']);
 Route::get('/api/users/plants/delete-plant-reminder/{id}', [APIController::class, 'delete_plant_reminder']);

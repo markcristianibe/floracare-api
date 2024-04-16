@@ -21,21 +21,38 @@ class APIController extends Controller
     function iot_send_data(Request $request){
         $device_id = $request->serial;
 
-        Device::where('serial_no', '=', $device_id)
-        ->where('status', '!=', 'idle')
-        ->update([
-            'light_intensity' => $request->lightIntensity,
-            'temperature' => $request->temperature,
-            'humidity' => $request->humidity,
-            'soil_moisture' => $request->soilMoisture,
-            'battery_percentage' => $request->batteryLevel,
-            'soil_fertility' => $request->soilEC,
-            'soil_ph' => $request->soilPH,
-            'nitrogen' => $request->nitrogen,
-            'phosphorus' => $request->phosporus,
-            'potassium' => $request->potassium,
-            'status' => 'online'
-        ]);
+        $device = Device::where('serial_no', '=', $device_id)->first();
+
+        if($device->plant_id != ''){
+            Device::where('serial_no', '=', $device_id)
+            ->where('status', '!=', 'idle')
+            ->update([
+                'light_intensity' => $request->lightIntensity,
+                'temperature' => $request->temperature,
+                'humidity' => $request->humidity,
+                'battery_percentage' => $request->batteryLevel,
+                'soil_fertility' => $request->soilEC,
+                'nitrogen' => $request->nitrogen,
+                'phosphorus' => $request->phosporus,
+                'potassium' => $request->potassium,
+                'status' => 'online'
+            ]);
+
+            if($request->soilMoisture <= 100){
+                Device::where('serial_no', '=', $device_id)
+                ->where('status', '!=', 'idle')
+                ->update([
+                    'soil_moisture' => $request->soilMoisture
+                ]);
+            }
+            if($request->soilPH <= 16){
+                Device::where('serial_no', '=', $device_id)
+                ->where('status', '!=', 'idle')
+                ->update([
+                    'soil_ph' => $request->soilPH
+                ]);
+            }
+        }
 
         $device = Device::where('serial_no', '=', $request->serial)->first();
 
@@ -70,6 +87,7 @@ class APIController extends Controller
 
         $user = DB::table('users')
             ->where('email', '=', $request->email)
+            ->where('status', '=', 'active')
             ->select('id', 'email', 'password')
             ->first();
         if($user && Hash::check($request->password, $user->password)){
@@ -79,6 +97,80 @@ class APIController extends Controller
 
         $response = ['message' => 'Incorrect email or password'];
         return response()->json($response, 400);
+    }
+
+    public function user_registration(Request $request){
+        validator(request()->all(), [
+            'email' => ['required', 'email'],
+            'password' => ['required'],
+            'firstname' => ['required'],
+            'lastname' => ['required']
+        ])->validate();
+
+        $user = User::where('email', '=', $request->email)->get();
+
+        if($user->count() == 0){
+            $user = new User; 
+            $user->email = $request->email;
+            $user->password = $request->password;
+            $user->firstname = $request->firstname;
+            $user->lastname = $request->lastname;
+            $user->status = 'deactivated';
+            $user->save();
+
+            include("PHPMailer/mailer.php");
+
+            $subject = "Floracare Account Verification";
+            $body = "
+            <html>
+            <head>
+            <title></title>
+            </head>
+            <body>
+            ";
+            $body .= "<h2>Welcome to Floracare!</h2>";
+            $body .= "<h3>Hi ". $request->firstname .",</h3>";
+            $body .= "<small>We're happy you signed up for Floracare. Before being able to use your account you need to verify that this is your email address by clicking the button below.</small><br><br><br>";
+            $body .= "<a href='192.168.1.9/api/user/verify/". $request->email ."' style='padding: 10px; border-radius: 10px; border: 1px solid #d9ead3; background: #6aa84f; text-decoration: none; color: #fff;'>Verify Account</a>";
+            $body .= "
+            </body>
+            </html>
+            ";
+
+            SendEmail($request->email, $subject, $body);
+
+            $response = ['user' => $user];
+            return response()->json($response, 200);
+        }
+        else{
+            $response = ['message' => 'Email is already exists.'];
+            return response()->json($response, 400);
+        }
+    }
+
+    public function verify_account($email){
+        User::where('email', '=', $email)->update(['status' => 'active']);
+        return view('verify');
+    }
+
+    public function update_user_info(Request $request){
+        validator(request()->all(), [
+            'email' => ['required', 'email'],
+            'password' => ['required'],
+            'firstname' => ['required'],
+            'lastname' => ['required']
+        ])->validate();
+        
+        $user = new User; 
+        $user->email = $request->email;
+        $user->password = $request->password;
+        $user->firstname = $request->firstname;
+        $user->lastname = $request->lastname;
+        $user->status = 'deactivated';
+        $user->save();
+
+        $response = ['user' => $user];
+        return response()->json($response, 200);
     }
 
     public function get_plant_info(Request $request){
@@ -249,7 +341,8 @@ class APIController extends Controller
     }
 
     public function get_user_reminders($user_id){
-        $userPlants = UserPlant::with(['reminders' => function($query) {
+        $userPlants = UserPlant::where('user_id', '=', $user_id)
+        ->with(['reminders' => function($query) {
             $query->where('status', '!=', 'done');
         }])->get();
         return $userPlants;
@@ -392,4 +485,20 @@ class APIController extends Controller
         $user = User::where('id', '=', $user_id)->first();
         return $user;
     }
+
+    public function get_plant_scores(Request $request){
+        $today = date_create();
+        $date = date_format($today, "Y-m-d H") . "%";
+        $data = array();
+        for($i = 0; $i < 12; $i++){
+            $logs = ReadingLog::where('plant_id', '=', $request->plant_id)
+            ->where('created_at', 'like', $date)
+            ->avg($request->parameter);
+            array_push($data, $logs);
+
+            date_sub($today, date_interval_create_from_date_string('1 hour'));  
+            $date = date_format($today, "Y-m-d H") . "%";
+        }
+        return $data;
+    }   
 }

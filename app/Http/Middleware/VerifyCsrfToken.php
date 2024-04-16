@@ -13,6 +13,9 @@ class VerifyCsrfToken extends Middleware
      */
     protected $except = [
         '/api/user/sign-in',
+        '/api/user/sign-up',
+        '/api/user/verify/',
+        '/api/user/update-user-info/',
         '/api/plants/get-info',
         '/api/users/plants/add-plant',
         '/api/users/plants/get-plants',
@@ -36,6 +39,7 @@ class VerifyCsrfToken extends Middleware
         '/api/users/plants/get-user-reminders/',
         '/api/users/plant/get-plant-monitoring/',
         '/api/users/get-user-info/',
-        '/api/iot/send-data'
+        '/api/iot/send-data',
+        '/api/users/plants/get-plant-scores/'
     ];
 }
